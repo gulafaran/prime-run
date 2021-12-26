@@ -16,6 +16,14 @@
 #include "nvidia.h"
 #include "opengl.h"
 
+#define OPTIONAL_ARGUMENT_IS_PRESENT \
+    ((optarg == NULL && optind < argc) \
+     ? (bool) (optarg = argv[optind++]) \
+     : (optarg != NULL))
+
+#define RUN_APPLICATION \
+    ((argc > 2 && strstr(argv[1], "-") == NULL && strstr(argv[1], "--") == NULL))
+
 void print_help(bool quit) {
     printf("To run an application on the NVIDIA gpu.\n");
     printf("Use: prime-run <application>\n\n");
@@ -60,11 +68,9 @@ int main(int argc, char **argv) {
     set_nvidia_env_vars();
 
     //assume we want to run application instead of parsing argv so we can send used args to application.
-    if(argc > 2) {
-        if(strstr(argv[1], "-") == NULL && strstr(argv[1], "--") == NULL) {
-            opt = -1;
-            goto run_application;
-        }
+    if(RUN_APPLICATION) {
+        opt = -1;
+        goto run_application;
     }
 
     struct nv_struct *nv_st = init_nv_struct();
@@ -101,14 +107,11 @@ int main(int argc, char **argv) {
             break;
         }
         else if(opt == 'p') {
-            if(optarg == NULL && optind < argc) {
-                optarg = argv[optind++];
-            }
-            if(optarg == NULL) {
-                print_nvidia_pm(nv_st);
+            if(OPTIONAL_ARGUMENT_IS_PRESENT) {
+                set_nvidia_pm_control(nv_st->pm_control, optarg);
             }
             else {
-                set_nvidia_pm_control(nv_st->pm_control, optarg);
+                print_nvidia_pm(nv_st);
             }
             break;
         }
