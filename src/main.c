@@ -27,7 +27,7 @@ void print_help(bool quit) {
     printf("  -u , --udev                   print an template udev rule to disable NVIDIA PCI devices to stdout\n");
     printf("  -c , --check                  print various nvidia powermanagement/prime related services and module options.\n");
     printf("  -e , --envvars                print PRIME associated environment vars.\n");
-    printf("  -p , --powermanagement [arg]  print or set (ON/OFF/AUTO) nvidia powermanagement status.\n");
+    printf("  -p , --powermanagement [arg]  print nvidia powermanagement or set powermanagement to \"on\" or \"auto\"\n");
     printf("  -s , --status                 print nvidia status file.\n");
     printf("  -h , --help                   print this help and exit.\n");
 
