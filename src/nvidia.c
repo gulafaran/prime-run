@@ -223,60 +223,6 @@ bool print_nvidia_drm_modeset() {
     return true;
 }
 
-static char *get_nvidia_pci_id() {
-    struct pci_access* pciaccess;
-    struct pci_dev* dev;
-
-    pciaccess = pci_alloc();
-    pci_init(pciaccess);
-    pci_scan_bus(pciaccess);
-
-    char pci_id_buf[50];
-
-    for(dev = pciaccess->devices; dev; dev = dev->next) {
-        pci_fill_info(dev, PCI_FILL_IDENT | PCI_FILL_BASES | PCI_FILL_CLASS);
-        if(dev->device_class == 768 && dev->vendor_id == 4318) {
-            //found device class VGA and vendor id NVIDIA
-            snprintf(pci_id_buf, sizeof(pci_id_buf), "PCI:%u:%u:%u", dev->bus, dev->dev, dev->func);
-            break;
-        }
-    }
-
-    pci_cleanup(pciaccess);
-
-    char *ret = malloc(sizeof(pci_id_buf));
-    strcpy(ret, pci_id_buf);
-
-    return ret;
-}
-
-static char *get_internal_pci_id() {
-    struct pci_access* pciaccess;
-    struct pci_dev* dev;
-
-    pciaccess = pci_alloc();
-    pci_init(pciaccess);
-    pci_scan_bus(pciaccess);
-
-    char pci_id_buf[50];
-
-    for(dev = pciaccess->devices; dev; dev = dev->next) {
-        pci_fill_info(dev, PCI_FILL_IDENT | PCI_FILL_BASES | PCI_FILL_CLASS);
-        if(dev->device_class == 768 && dev->vendor_id != 4318) {
-            //found device class VGA and vendor id NVIDIA
-            snprintf(pci_id_buf, sizeof(pci_id_buf), "PCI:%u:%u:%u", dev->bus, dev->dev, dev->func);
-            break;
-        }
-    }
-
-    pci_cleanup(pciaccess);
-
-    char *ret = malloc(sizeof(pci_id_buf));
-    strcpy(ret, pci_id_buf);
-
-    return ret;
-}
-
 void print_nvidia_udev_template() {
     printf("# https://download.nvidia.com/XFree86/Linux-x86_64/470.63.01/README/dynamicpowermanagement.html\n\n");
     printf("# Remove NVIDIA USB xHCI Host Controller devices, if present\n");
@@ -311,13 +257,13 @@ void print_nvidia_xorg_template(struct nv_struct *nv_st) {
     printf("Section \"Device\"\n");
     printf("  Identifier \"internal\"\n");
     printf("  Driver \"modesetting\"\n");
-    printf("  BusID \"%s\"\n", nv_st->internal_pci_id);
+    printf("  BusID \"%s\"\n", nv_st->pci_internal->busid);
     printf("EndSection\n\n");
 
     printf("Section \"Device\"\n");
     printf("  Identifier \"nvidia\"\n");
     printf("  Driver \"nvidia\"\n");
-    printf("  BusID \"%s\"\n", nv_st->pci_id); //detect?
+    printf("  BusID \"%s\"\n", nv_st->pci_nv->busid); //detect?
     printf("  Option \"ProbeAllGpus\" \"false\"\n");
     printf("EndSection\n\n");
 
@@ -348,8 +294,16 @@ struct nv_struct *init_nv_struct() {
     nv_st->pm_control = get_nvidia_pm_control(nv_st->sys_path, nv_st->id);
     nv_st->status = get_nvidia_status(nv_st->proc_path);
     nv_st->params = get_nvidia_params();
-    nv_st->pci_id = get_nvidia_pci_id();
-    nv_st->internal_pci_id = get_internal_pci_id();
+
+    nv_st->pci_nv = init_pci_struct(VENDOR_NVIDIA);
+    nv_st->pci_internal = init_pci_struct(VENDOR_INTEL);
+    if(nv_st->pci_internal == NULL) {
+        nv_st->pci_internal = init_pci_struct(VENDOR_AMD);
+        if(nv_st->pci_internal == NULL) {
+            fprintf(stderr, "error cant find internal PCI vga card.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
 
     return nv_st;
 }
@@ -361,7 +315,7 @@ void free_nv_struct(struct nv_struct *nv_st) {
     free(nv_st->pm_control);
     free(nv_st->status);
     free(nv_st->params);
-    free(nv_st->pci_id);
-    free(nv_st->internal_pci_id);
+    free_pci_struct(nv_st->pci_nv);
+    free_pci_struct(nv_st->pci_internal);
     free(nv_st);
 }

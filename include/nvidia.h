@@ -10,6 +10,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include "pci.h"
 
 //example /proc/driver/nvidia/gpus/0000:01:00.0/power
 #define NV_PROC_DRIVER_PATH "/proc/driver/nvidia/"
@@ -24,8 +25,9 @@ struct nv_struct {
     char *pm_control;
     char *status;
     char *params;
-    char *pci_id;
-    char *internal_pci_id;
+
+    struct pci_struct *pci_nv;
+    struct pci_struct *pci_internal;
 };
 
 void set_nvidia_pm_control(char *pm_control, char *status);

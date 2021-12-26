@@ -1,17 +1,18 @@
- CC=gcc
-VERSION=v1.0
-ARCH=x86-64
-BIN=prime-run
+CC ?= gcc
+VERSION = v1.0
+ARCH ?= x86-64
+BIN = prime-run
 
+CFLAGS ?= -march=$(ARCH) -mtune=native -g 
 INCLUDE=-Iinclude/
 PKGFLAGS=freeglut gl libpci
-CFLAGS=-march=$(ARCH) -mtune=native -g $(INCLUDE) `pkg-config --cflags $(PKGFLAGS)`
+override CFLAGS += $(INCLUDE) `pkg-config --cflags $(PKGFLAGS)`
 LINKER=-lm `pkg-config --libs $(PKGFLAGS)`
 SRC = $(wildcard src/*.c)
 OBJ = $(SRC:.c=.o)
 DEPS = $(wildcard include/*.h)
 
-primetest: $(OBJ)
+prime-run: $(OBJ)
 	$(CC) $(OBJ) $(LINKER) -o src/$(BIN)
 
 %.o: %.c $(DEPS)

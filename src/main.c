@@ -99,7 +99,7 @@ void check_options(struct nv_struct *nv_st) {
     free(nv_path);
 }
 
-void print_help() {
+void print_help(bool quit) {
     printf("To run an application on the NVIDIA gpu.\n");
     printf("Use: prime-run <application>\n\n");
     printf("To run various options prime-run handles.\n");
@@ -113,6 +113,10 @@ void print_help() {
     printf("  -p , --powermanagement     print nvidia powermanagement status.\n");
     printf("  -s , --status              print nvidia status file.\n");
     printf("  -h , --help                print this help and exit.\n");
+
+    if(quit) {
+        exit(EXIT_SUCCESS);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -132,8 +136,7 @@ int main(int argc, char **argv) {
     int opt;
 
     if(argc == 1) {
-        print_help();
-        exit(EXIT_SUCCESS);
+        print_help(true);
     }
 
     //set nvidia environment variables
@@ -189,7 +192,7 @@ int main(int argc, char **argv) {
             break;
         }
         else if(opt == 'h') {
-            print_help();
+            print_help(false);
             break;
         }
     }
