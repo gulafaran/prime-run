@@ -39,7 +39,6 @@ struct pci_struct *init_pci_struct(u16 vendor_id) {
             pci_st->device_class = dev->device_class;
             pci_st->busid = malloc(sizeof(pci_id_buf));
             strcpy(pci_st->busid, pci_id_buf);
-            pci_st->pci_id = "#TODO"; // #TODO hardcode for now.
             break;
         }
     }
@@ -51,6 +50,5 @@ struct pci_struct *init_pci_struct(u16 vendor_id) {
 
 void free_pci_struct(struct pci_struct *pci_st) {
     free(pci_st->busid);
-    //free(pci_st->pci_id);
     free(pci_st);
 }

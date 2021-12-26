@@ -80,7 +80,19 @@ void set_nvidia_pm_control(char *pm_control, char *status) {
         exit(EXIT_FAILURE);
     }
 
-    write_file(pm_control, status);
+    uid_t euid = geteuid();
+
+    if(euid != 0) {
+        fprintf(stderr, "error requires root to write to file: %s\n", pm_control);
+        return;
+    }
+
+    if(!strcmp("auto", status) || !strcmp("on", status)) {
+        write_file(pm_control, status);
+    }
+    else {
+        fprintf(stderr, "error powermanagement arguments can only be \"auto\" or \"on\"\n");
+    }
 }
 
 static char *get_nvidia_status(char *proc_path) {
@@ -263,7 +275,7 @@ void print_nvidia_xorg_template(struct nv_struct *nv_st) {
     printf("Section \"Device\"\n");
     printf("  Identifier \"nvidia\"\n");
     printf("  Driver \"nvidia\"\n");
-    printf("  BusID \"%s\"\n", nv_st->pci_nv->busid); //detect?
+    printf("  BusID \"%s\"\n", nv_st->pci_nv->busid);
     printf("  Option \"ProbeAllGpus\" \"false\"\n");
     printf("EndSection\n\n");
 
@@ -285,6 +297,89 @@ void set_nvidia_env_vars() {
     set_env_var("VKD3D_FILTER_DEVICE_NAME", "NVIDIA", 1);
 }
 
+//https://download.nvidia.com/XFree86/Linux-x86_64/470.63.01/README/dynamicpowermanagement.html
+//https://download.nvidia.com/XFree86/Linux-x86_64/470.63.01/README/powermanagement.html
+//https://download.nvidia.com/XFree86/Linux-x86_64/470.63.01/README/nvidia-persistenced.html
+//https://download.nvidia.com/XFree86/Linux-x86_64/470.63.01/README/randr14.html
+//udev rules
+/*
+    Function 0: VGA controller / 3D controller
+    Function 1: Audio device
+    Function 2: USB xHCI Host controller
+    Function 3: USB Type-C UCSI controller
+    https://download.nvidia.com/XFree86/Linux-x86_64/435.17/README/dynamicpowermanagement.html
+    
+    /sys/bus/pci/devices/0000:01:00.0/
+    /sys/bus/pci/devices/0000:01:00.1/
+    /sys/bus/pci/devices/0000:01:00.2/
+    /sys/bus/pci/devices/0000:01:00.3/
+
+    Out of the four PCI functions, the NVIDIA driver directly manages the VGA controller / 3D Controller PCI function.
+    Other PCI functions are managed by the device drivers provided with the Linux kernel.
+    And may interfere with power management.
+*/
+
+void nvidia_check_options(struct nv_struct *nv_st) {
+    print_systemd_service_status("nvidia-persistenced.service");
+
+    if(!print_nvidia_drm_modeset()) {
+        printf("nvidia-drm modeset=1 is required to get PRIME synchronisation working.\n");
+        printf("    sudo cat /sys/module/nvidia_drm/parameters/modeset either returns Y or N.\n");
+        printf("    or run this again as root.\n\n");
+    }
+
+    char *nv_dyn_pm = get_nvidia_param_value(nv_st->params, "DynamicPowerManagement");
+    char *nv_pm_tresh = get_nvidia_param_value(nv_st->params, "DynamicPowerManagementVideoMemoryThreshold");
+    char *nv_s0ix = get_nvidia_param_value(nv_st->params, "EnableS0ixPowerManagement");
+    char *nv_s0ix_tresh = get_nvidia_param_value(nv_st->params, "S0ixPowerManagementVideoMemoryThreshold");
+    char *nv_pre_mem = get_nvidia_param_value(nv_st->params, "PreserveVideoMemoryAllocations");
+    
+    printf("NVreg_DynamicPowerManagement = %s \n", nv_dyn_pm);
+    printf("NVreg_DynamicPowerManagementVideoMemoryThreshold = %s \n", nv_pm_tresh);
+    printf("NVreg_EnableS0ixPowerManagement = %s \n", nv_s0ix);
+    printf("NVreg_S0ixPowerManagementVideoMemoryThreshold = %s \n", nv_s0ix_tresh);
+    printf("NVreg_PreserveVideoMemoryAllocations = %s \n\n", nv_pre_mem);
+
+    free(nv_dyn_pm);
+    free(nv_pm_tresh);
+    free(nv_s0ix);
+    free(nv_s0ix_tresh);
+    free(nv_pre_mem);
+
+    printf("PCI functions that may interfere with powermanagement if they exist.\n");
+
+    char *nv_path = str_combine(SYS_DEVICE_PATH, nv_st->id);
+
+    nv_path[strlen(nv_path) - 1] = '1';
+    printf("1: Audio device\n");
+    if(file_exists(nv_path)) {
+        printf("%s , exists.\n\n", nv_path);
+    }
+    else {
+        printf("%s , doesnt exist.\n\n", nv_path);
+    }
+
+    nv_path[strlen(nv_path) - 1] = '2';
+    printf("2: USB xHCI Host controller\n");
+    if(file_exists(nv_path)) {
+        printf("%s , exists.\n\n", nv_path);
+    }
+    else {
+        printf("%s , doesnt exist.\n\n", nv_path);
+    }
+
+    nv_path[strlen(nv_path) - 1] = '3';
+    printf("3: USB Type-C UCSI controller\n");
+    if(file_exists(nv_path)) {
+        printf("%s , exists.\n", nv_path);
+    }
+    else {
+        printf("%s , doesnt exist.\n", nv_path);
+    }
+
+    free(nv_path);
+}
+
 struct nv_struct *init_nv_struct() {
     struct nv_struct *nv_st = malloc(sizeof(struct nv_struct));
 
@@ -296,6 +391,11 @@ struct nv_struct *init_nv_struct() {
     nv_st->params = get_nvidia_params();
 
     nv_st->pci_nv = init_pci_struct(VENDOR_NVIDIA);
+    if(nv_st->pci_nv == NULL) {
+        fprintf(stderr, "error cant find nvidia PCI vga card.\n");
+        exit(EXIT_FAILURE);
+    }
+
     nv_st->pci_internal = init_pci_struct(VENDOR_INTEL);
     if(nv_st->pci_internal == NULL) {
         nv_st->pci_internal = init_pci_struct(VENDOR_AMD);

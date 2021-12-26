@@ -28,7 +28,6 @@ struct pci_struct {
     u16 vendor_id;
     u16 device_class;
     char *busid;
-    char *pci_id;
 };
 
 struct pci_struct *init_pci_struct(u16 vendor_id);

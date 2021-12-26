@@ -39,5 +39,6 @@ bool print_nvidia_drm_modeset();
 void print_nvidia_udev_template();
 void print_nvidia_xorg_template(struct nv_struct *nv_st);
 void set_nvidia_env_vars();
+void nvidia_check_options(struct nv_struct *nv_st);
 struct nv_struct *init_nv_struct();
 void free_nv_struct(struct nv_struct *nv_st);
